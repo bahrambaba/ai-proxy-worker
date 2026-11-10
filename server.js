@@ -86,22 +86,6 @@ function extractErrorMessage(text) {
   }
 }
 
-// تشخیص Provider بر اساس نام مدل
-function detectProvider(model) {
-  if (!model) return null;
-
-  // اول پیشوند nvidia/ را چک کن (قبل از :free)
-  if (model.startsWith("nvidia/")) return "nvidia";
-
-  // مدل‌های OpenRouter رایگان با :free تمام می‌شوند
-  if (model.endsWith(":free")) return "openrouter";
-  if (model.startsWith("openrouter/") || (model.includes("/") && !model.startsWith("nvidia/")))
-    return "openrouter";
-
-  // پیش‌فرض: NVIDIA
-  return "nvidia";
-}
-
 // Header builders
 function nvidiaHeaders(apiKey) {
   return {
@@ -120,6 +104,11 @@ function openrouterHeaders(apiKey) {
 }
 
 // ====================== API Key Management ======================
+
+// Cache for NVIDIA model IDs (populated on first /models call)
+let nvidiaModelCache = new Set();
+let nvidiaModelCacheTime = 0;
+const NVIDIA_MODEL_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function getApiKeys(env) {
   const nvidiaKeys = [];
@@ -145,6 +134,54 @@ function getApiKeys(env) {
   };
 }
 
+// Refresh NVIDIA model cache
+async function refreshNvidiaModelCache(nvidiaKeys) {
+  const now = Date.now();
+  if (nvidiaModelCache.size > 0 && (now - nvidiaModelCacheTime) < NVIDIA_MODEL_CACHE_TTL) {
+    return; // cache still valid
+  }
+
+  if (nvidiaKeys.length === 0) return;
+
+  for (let idx = 0; idx < nvidiaKeys.length; idx++) {
+    try {
+      const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/models`, {
+        headers: nvidiaHeaders(nvidiaKeys[idx]),
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const models = (data.data || []).map((m) => m.id);
+      
+      nvidiaModelCache = new Set(models);
+      nvidiaModelCacheTime = now;
+      console.log(`NVIDIA model cache refreshed: ${nvidiaModelCache.size} models`);
+      break;
+    } catch (e) {
+      console.log("NVIDIA model cache refresh failed, trying next key:", e.message);
+      continue;
+    }
+  }
+}
+
+// تشخیص Provider بر اساس نام مدل
+function detectProvider(model) {
+  if (!model) return null;
+
+  // مدل‌های NVIDIA (از کش مدل‌های موجود در NVIDIA API)
+  if (nvidiaModelCache.has(model)) return "nvidia";
+
+  // مدل‌های OpenRouter رایگان با :free تمام می‌شوند
+  if (model.endsWith(":free")) return "openrouter";
+  if (model.startsWith("openrouter/") || (model.includes("/") && !model.startsWith("nvidia/"))) {
+    return "openrouter";
+  }
+
+  // پیش‌فرض: اگر کلید NVIDIA داریم، NVIDIA را امتحان کن
+  return "nvidia";
+}
+
 // ====================== Routes ======================
 
 // Health check (both paths)
@@ -162,6 +199,9 @@ const modelsHandler = async (req, res) => {
 
     // Fetch NVIDIA models
     if (nvidia.length > 0) {
+      // Refresh NVIDIA model cache
+      await refreshNvidiaModelCache(nvidia);
+
       for (let idx = 0; idx < nvidia.length; idx++) {
         try {
           const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/models`, {
