@@ -32,7 +32,7 @@ A Cloudflare Worker that acts as a unified proxy for **NVIDIA API** and **OpenRo
 
 > ⚠️ **Only free OpenRouter models** (`:free` suffix) are supported.
 
-## Quick Start
+## Quick Start (CLI with Wrangler)
 
 ### 1. Install Dependencies
 ```bash
@@ -62,6 +62,76 @@ npm run dev
 ```bash
 npm run deploy
 ```
+
+---
+
+## 🌐 Manual Setup via Cloudflare Dashboard (No CLI)
+
+If you prefer not to use the command line, you can set everything up directly in the Cloudflare dashboard:
+
+### Step 1: Create a Worker
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages**
+2. Click **Create application** → **Create Worker**
+3. Name your worker (e.g., `ai-proxy-worker`)
+4. Click **Deploy** (you'll edit the code next)
+
+### Step 2: Add the Worker Code
+1. In your worker, go to **Code** tab
+2. Delete all existing code
+3. Copy the entire contents of [`src/index.js`](src/index.js) from this repo
+4. Paste it into the editor
+5. Click **Save and deploy**
+
+### Step 3: Configure Environment Variables (Secrets & Variables)
+Go to **Settings** → **Variables** section:
+
+#### 🔐 Secrets (Encrypted - for API Keys)
+Click **Add variable** → Select **Secret** type for each:
+
+| Variable Name | Value | Description |
+|---------------|-------|-------------|
+| `NV-1` | `your-nvidia-api-key-1` | First NVIDIA API key |
+| `NV-2` | `your-nvidia-api-key-2` | Second NVIDIA API key (optional) |
+| `NV-3` | `...` | Add as many as needed (NV-4, NV-5...) |
+| `OR-1` | `your-openrouter-api-key-1` | First OpenRouter API key |
+| `OR-2` | `your-openrouter-api-key-2` | Second OpenRouter API key (optional) |
+| `OR-3` | `...` | Add as many as needed (OR-4, OR-5...) |
+| `PROXY_TOKEN` | `your-custom-token` | **Optional** - Protects your endpoint |
+
+> 💡 **Tip**: You can add unlimited keys by incrementing the number (NV-1, NV-2, NV-3... OR-1, OR-2, OR-3...). The worker automatically discovers all of them.
+
+#### 📝 Variables (Plain Text - for Configuration)
+Click **Add variable** → Select **Text** type (optional):
+
+| Variable Name | Value | Description |
+|---------------|-------|-------------|
+| `OPENROUTER_REFERER` | `https://your-domain.com` | Custom referer for OpenRouter (optional) |
+| `OPENROUTER_TITLE` | `My AI App` | Custom title for OpenRouter (optional) |
+
+### Step 4: (Optional) Custom Domain
+1. Go to **Settings** → **Triggers** → **Custom Domains**
+2. Click **Add Custom Domain**
+3. Enter your domain (e.g., `ai.yourdomain.com`)
+4. Follow DNS verification steps
+
+### Step 5: Test Your Worker
+Your worker is now live at:
+- `https://your-worker-name.your-subdomain.workers.dev`
+- Or your custom domain if configured
+
+Test endpoints:
+```bash
+# List models
+curl https://your-worker.your-subdomain.workers.dev/models
+
+# Chat completion
+curl -X POST https://your-worker.your-subdomain.workers.dev/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_PROXY_TOKEN" \
+  -d '{"model": "meta-llama/llama-3.1-8b-instruct:free", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+---
 
 ## Usage Examples
 
@@ -131,7 +201,7 @@ ai-proxy-worker/
 └── README.md             # This file
 ```
 
-## Development
+## Development (CLI)
 
 ### Local Testing with `.dev.vars`
 Create a `.dev.vars` file (not committed):
@@ -153,4 +223,4 @@ npm run tail
 
 ## License
 
-MIT © [Bahram Babaei](https://github.com/bahrambaba)
+MIT © [Bahram](https://github.com/bahrambaba)
