@@ -90,12 +90,16 @@ function extractErrorMessage(text) {
 function detectProvider(model) {
   if (!model) return null;
 
+  // اول پیشوند nvidia/ را چک کن (قبل از :free)
+  if (model.startsWith("nvidia/")) return "nvidia";
+
+  // مدل‌های OpenRouter رایگان با :free تمام می‌شوند
   if (model.endsWith(":free")) return "openrouter";
   if (model.startsWith("openrouter/") || (model.includes("/") && !model.startsWith("nvidia/")))
     return "openrouter";
-  if (model.startsWith("nvidia/")) return "nvidia";
 
-  return model.endsWith(":free") ? "openrouter" : "nvidia";
+  // پیش‌فرض: NVIDIA
+  return "nvidia";
 }
 
 // Header builders
