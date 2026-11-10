@@ -5,7 +5,7 @@ A Cloudflare Worker that acts as a unified proxy for **NVIDIA API** and **OpenRo
 ## Features
 
 - 🔀 **Smart Routing**: Automatically routes requests to NVIDIA or OpenRouter based on model name
-- 🔑 **Multi-Key Failover**: Supports unlimited API keys (NV-1, NV-2... / OR-1, OR-2...)
+- 🔑 **Multi-Key Failover**: Supports unlimited API keys (NV_1, NV_2... / OR_1, OR_2...)
 - 🔄 **Automatic Retry**: On rate limits (429, 503, 529) or network errors, tries next key
 - 📡 **Streaming Support**: Full Server-Sent Events (SSE) streaming for chat completions
 - 🛡️ **Optional Auth**: Protect your worker with a custom `PROXY_TOKEN`
@@ -42,12 +42,12 @@ npm install
 ### 2. Configure Secrets
 ```bash
 # NVIDIA API Keys (at least one required if using NVIDIA models)
-wrangler secret put NV-1
-wrangler secret put NV-2
+wrangler secret put NV_1
+wrangler secret put NV_2
 
 # OpenRouter API Keys (at least one required if using OpenRouter models)
-wrangler secret put OR-1
-wrangler secret put OR-2
+wrangler secret put OR_1
+wrangler secret put OR_2
 
 # Optional: Protect your worker endpoint
 wrangler secret put PROXY_TOKEN
@@ -90,15 +90,15 @@ Click **Add variable** → Select **Secret** type for each:
 
 | Variable Name | Value | Description |
 |---------------|-------|-------------|
-| `NV-1` | `your-nvidia-api-key-1` | First NVIDIA API key |
-| `NV-2` | `your-nvidia-api-key-2` | Second NVIDIA API key (optional) |
-| `NV-3` | `...` | Add as many as needed (NV-4, NV-5...) |
-| `OR-1` | `your-openrouter-api-key-1` | First OpenRouter API key |
-| `OR-2` | `your-openrouter-api-key-2` | Second OpenRouter API key (optional) |
-| `OR-3` | `...` | Add as many as needed (OR-4, OR-5...) |
+| `NV_1` | `your-nvidia-api-key-1` | First NVIDIA API key |
+| `NV_2` | `your-nvidia-api-key-2` | Second NVIDIA API key (optional) |
+| `NV_3` | `...` | Add as many as needed (NV_4, NV_5...) |
+| `OR_1` | `your-openrouter-api-key-1` | First OpenRouter API key |
+| `OR_2` | `your-openrouter-api-key-2` | Second OpenRouter API key (optional) |
+| `OR_3` | `...` | Add as many as needed (OR_4, OR_5...) |
 | `PROXY_TOKEN` | `your-custom-token` | **Optional** - Protects your endpoint |
 
-> 💡 **Tip**: You can add unlimited keys by incrementing the number (NV-1, NV-2, NV-3... OR-1, OR-2, OR-3...). The worker automatically discovers all of them.
+> 💡 **Tip**: You can add unlimited keys by incrementing the number (NV_1, NV_2, NV_3... OR_1, OR_2, OR_3...). The worker automatically discovers all of them.
 
 #### 📝 Variables (Plain Text - for Configuration)
 Click **Add variable** → Select **Text** type (optional):
@@ -176,8 +176,8 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/chat/completions \
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NV-1`, `NV-2`, ... | At least one group | NVIDIA API keys from [integrate.api.nvidia.com](https://integrate.api.nvidia.com) |
-| `OR-1`, `OR-2`, ... | At least one group | OpenRouter API keys from [openrouter.ai](https://openrouter.ai/keys) |
+| `NV_1`, `NV_2`, ... | At least one group | NVIDIA API keys from [integrate.api.nvidia.com](https://integrate.api.nvidia.com) |
+| `OR_1`, `OR_2`, ... | At least one group | OpenRouter API keys from [openrouter.ai](https://openrouter.ai/keys) |
 | `PROXY_TOKEN` | No | Custom bearer token for worker authentication |
 
 ## How Failover Works
@@ -206,8 +206,8 @@ ai-proxy-worker/
 ### Local Testing with `.dev.vars`
 Create a `.dev.vars` file (not committed):
 ```bash
-NV-1="your-test-key"
-OR-1="your-test-key"
+NV_1="your-test-key"
+OR_1="your-test-key"
 PROXY_TOKEN="test-token"
 ```
 

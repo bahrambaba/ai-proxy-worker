@@ -5,22 +5,22 @@ export default {
 
     const url = new URL(request.url);
 
-    // جمع‌آوری API Keyهای NVIDIA: NV-1, NV-2, NV-3, ... (بدون محدودیت تعداد)
+    // جمع‌آوری API Keyهای NVIDIA: NV_1, NV_2, NV_3, ... (بدون محدودیت تعداد)
     const NVIDIA_KEYS = [];
     for (const [keyName, value] of Object.entries(env)) {
-      if (keyName.startsWith("NV-") && value) {
+      if (keyName.startsWith("NV_") && value) {
         const num = parseInt(keyName.slice(3), 10);
         if (!isNaN(num)) NVIDIA_KEYS.push({ num, key: value });
       }
     }
-    // مرتب‌سازی بر اساس شماره (NV-1, NV-2, ...)
+    // مرتب‌سازی بر اساس شماره (NV_1, NV_2, ...)
     NVIDIA_KEYS.sort((a, b) => a.num - b.num);
     const nvidiaKeysOnly = NVIDIA_KEYS.map(k => k.key);
 
-    // جمع‌آوری API Keyهای OpenRouter: OR-1, OR-2, OR-3, ... (بدون محدودیت تعداد)
+    // جمع‌آوری API Keyهای OpenRouter: OR_1, OR_2, OR_3, ... (بدون محدودیت تعداد)
     const OPENROUTER_KEYS = [];
     for (const [keyName, value] of Object.entries(env)) {
-      if (keyName.startsWith("OR-") && value) {
+      if (keyName.startsWith("OR_") && value) {
         const num = parseInt(keyName.slice(3), 10);
         if (!isNaN(num)) OPENROUTER_KEYS.push({ num, key: value });
       }
@@ -30,7 +30,7 @@ export default {
 
     const ALL_KEYS_CONFIGURED = nvidiaKeysOnly.length > 0 || openrouterKeysOnly.length > 0;
     if (!ALL_KEYS_CONFIGURED) {
-      return jsonResponse({ error: "No API keys configured (need NV-* or OR-* keys)" }, 500);
+      return jsonResponse({ error: "No API keys configured (need NV_* or OR_* keys)" }, 500);
     }
 
     // توکن اختصاصی ورکر: اگر PROXY_TOKEN تعریف شده باشد، درخواست باید همان را بفرستد.
@@ -254,7 +254,7 @@ async function handleChat(request, nvidiaKeys, openrouterKeys) {
     return jsonResponse(
       {
         error: {
-          message: `Model "${body.model}" requires OpenRouter API keys (OR-*), but none are configured.`,
+          message: `Model "${body.model}" requires OpenRouter API keys (OR_*), but none are configured.`,
           type: "invalid_request_error",
         },
       },
@@ -267,7 +267,7 @@ async function handleChat(request, nvidiaKeys, openrouterKeys) {
     return jsonResponse(
       {
         error: {
-          message: `Model "${body.model}" requires NVIDIA API keys (NV-*), but none are configured.`,
+          message: `Model "${body.model}" requires NVIDIA API keys (NV_*), but none are configured.`,
           type: "invalid_request_error",
         },
       },
@@ -365,7 +365,7 @@ async function handleChat(request, nvidiaKeys, openrouterKeys) {
   return jsonResponse(
     {
       error: {
-        message: `All ${provider.toUpperCase()} API keys (${provider === "openrouter" ? "OR-*" : "NV-*"}) are currently rate-limited or unavailable. Please try again in a few minutes.`,
+        message: `All ${provider.toUpperCase()} API keys (${provider === "openrouter" ? "OR_*" : "NV_*"}) are currently rate-limited or unavailable. Please try again in a few minutes.`,
         type: "rate_limit_exceeded",
         details: extractErrorMessage(lastErrorText).slice(0, 300),
       },

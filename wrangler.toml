@@ -4,10 +4,10 @@ compatibility_date = "2024-11-10"
 compatibility_flags = ["nodejs_compat"]
 
 # Environment variables (set via wrangler secret put or dashboard)
-# NV-1 = "your-nvidia-api-key-1"
-# NV-2 = "your-nvidia-api-key-2"
-# OR-1 = "your-openrouter-api-key-1"
-# OR-2 = "your-openrouter-api-key-2"
+# NV_1 = "your-nvidia-api-key-1"
+# NV_2 = "your-nvidia-api-key-2"
+# OR_1 = "your-openrouter-api-key-1"
+# OR_2 = "your-openrouter-api-key-2"
 # PROXY_TOKEN = "your-custom-auth-token"  # Optional
 
 [vars]
