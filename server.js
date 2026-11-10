@@ -143,13 +143,13 @@ function getApiKeys(env) {
 
 // ====================== Routes ======================
 
-// Health check
-app.get("/health", (req, res) => {
+// Health check (both paths)
+app.get(["/health", "/v1/health"], (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// List models
-app.get("/models", async (req, res) => {
+// List models handler
+const modelsHandler = async (req, res) => {
   try {
     const { nvidia, openrouter } = getApiKeys(process.env);
     const allModels = [];
@@ -228,10 +228,13 @@ app.get("/models", async (req, res) => {
     console.error("Models error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
-});
+};
 
-// Chat completions
-app.post("/chat/completions", async (req, res) => {
+// Register models routes for both paths
+app.get(["/models", "/v1/models"], modelsHandler);
+
+// Chat completions handler
+const chatHandler = async (req, res) => {
   try {
     const body = req.body;
 
@@ -360,10 +363,13 @@ app.post("/chat/completions", async (req, res) => {
     console.error("Chat error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
-});
+};
 
-// CORS preflight
-app.options("/*", (req, res) => {
+// Register chat routes for both paths
+app.post(["/chat/completions", "/v1/chat/completions"], chatHandler);
+
+// CORS preflight (both paths)
+app.options(["/*", "/v1/*"], (req, res) => {
   Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
   res.sendStatus(204);
 });
@@ -384,9 +390,9 @@ app.use((err, req, res, next) => {
 app.listen(PORT, HOST, () => {
   console.log(`🚀 AI Proxy Worker running on http://[${HOST}]:${PORT}`);
   console.log(`📡 Endpoints:`);
-  console.log(`   GET  /health`);
-  console.log(`   GET  /models`);
-  console.log(`   POST /chat/completions`);
+  console.log(`   GET  /health, /v1/health`);
+  console.log(`   GET  /models, /v1/models`);
+  console.log(`   POST /chat/completions, /v1/chat/completions`);
   console.log(`\n🔑 Configured keys:`);
   const { nvidia, openrouter } = getApiKeys(process.env);
   console.log(`   NVIDIA: ${nvidia.length} key(s)`);
