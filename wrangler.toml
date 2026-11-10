@@ -1,0 +1,28 @@
+name = "ai-proxy-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-10"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (set via wrangler secret put or dashboard)
+# NV-1 = "your-nvidia-api-key-1"
+# NV-2 = "your-nvidia-api-key-2"
+# OR-1 = "your-openrouter-api-key-1"
+# OR-2 = "your-openrouter-api-key-2"
+# PROXY_TOKEN = "your-custom-auth-token"  # Optional
+
+[vars]
+# Example: OPENROUTER_REFERER = "https://your-domain.com"
+# Example: OPENROUTER_TITLE = "Your App Name"
+
+[build]
+command = ""
+
+# Optional: Custom domain
+# routes = [
+#   { pattern = "api.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]
+
+# Optional: Durable Objects, KV, etc.
+# [[durable_objects.bindings]]
+# name = "MY_DO"
+# class_name = "MyDurableObject"

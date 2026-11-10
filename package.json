@@ -1,0 +1,29 @@
+{
+  "name": "ai-proxy-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker proxy for NVIDIA and OpenRouter AI APIs with automatic failover",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "cloudflare-worker",
+    "ai",
+    "proxy",
+    "nvidia",
+    "openrouter",
+    "llm"
+  ],
+  "author": "Bahram Babaei",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
