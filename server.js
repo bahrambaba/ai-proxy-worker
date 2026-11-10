@@ -1,9 +1,13 @@
 import express from "express";
 import cors from "cors";
+import { Readable } from "node:stream";
 import "dotenv/config";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// alwaysdata requires the server to listen on IPv6 (::).
+// It provides the address in the IP env var; fall back to :: in production.
+const HOST = process.env.IP || "::";
 
 // Middleware
 app.use(cors());
@@ -301,8 +305,13 @@ app.post("/chat/completions", async (req, res) => {
             res.setHeader("Connection", "keep-alive");
             Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
 
-            // Pipe the stream
-            response.body.pipe(res);
+            // response.body is a Web ReadableStream in Node 18+,
+            // convert it to a Node stream before piping.
+            if (response.body) {
+              Readable.fromWeb(response.body).pipe(res);
+            } else {
+              res.end();
+            }
             return;
           } else {
             const data = await response.json();
@@ -372,8 +381,8 @@ app.use((err, req, res, next) => {
 
 // ====================== Start Server ======================
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 AI Proxy Worker running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 AI Proxy Worker running on http://[${HOST}]:${PORT}`);
   console.log(`📡 Endpoints:`);
   console.log(`   GET  /health`);
   console.log(`   GET  /models`);
