@@ -14,6 +14,21 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// ====================== Auth Middleware ======================
+// If PROXY_TOKEN is set, every request (except health & preflight) must
+// send: Authorization: Bearer <PROXY_TOKEN>
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next();
+  if (req.path === "/health" || req.path === "/v1/health") return next();
+  if (!process.env.PROXY_TOKEN) return next();
+
+  const auth = req.headers.authorization || "";
+  if (auth !== `Bearer ${process.env.PROXY_TOKEN}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+});
+
 // ====================== Constants & Helpers ======================
 
 const FETCH_TIMEOUT_MS = 30_000;
@@ -166,19 +181,23 @@ async function refreshNvidiaModelCache(nvidiaKeys) {
 }
 
 // تشخیص Provider بر اساس نام مدل
-function detectProvider(model) {
+async function detectProvider(model) {
   if (!model) return null;
+
+  // اگر مدل در کش NVIDIA نیست، کش را (در صورت خالی/کهنه بودن) رفرش کن
+  if (!nvidiaModelCache.has(model)) {
+    const { nvidia } = getApiKeys(process.env);
+    await refreshNvidiaModelCache(nvidia);
+  }
 
   // مدل‌های NVIDIA (از کش مدل‌های موجود در NVIDIA API)
   if (nvidiaModelCache.has(model)) return "nvidia";
 
   // مدل‌های OpenRouter رایگان با :free تمام می‌شوند
   if (model.endsWith(":free")) return "openrouter";
-  if (model.startsWith("openrouter/") || (model.includes("/") && !model.startsWith("nvidia/"))) {
-    return "openrouter";
-  }
+  if (model.startsWith("openrouter/")) return "openrouter";
 
-  // پیش‌فرض: اگر کلید NVIDIA داریم، NVIDIA را امتحان کن
+  // پیش‌فرض: NVIDIA
   return "nvidia";
 }
 
@@ -292,7 +311,7 @@ const chatHandler = async (req, res) => {
     }
 
     const { nvidia, openrouter } = getApiKeys(process.env);
-    const provider = detectProvider(body.model);
+    const provider = await detectProvider(body.model);
     const isStreaming = body.stream === true;
 
     // Check if required keys exist
@@ -355,7 +374,13 @@ const chatHandler = async (req, res) => {
             // response.body is a Web ReadableStream in Node 18+,
             // convert it to a Node stream before piping.
             if (response.body) {
-              Readable.fromWeb(response.body).pipe(res);
+              const nodeStream = Readable.fromWeb(response.body);
+              nodeStream.on("error", (e) => {
+                console.error("Stream error:", e.message);
+                if (!res.headersSent) res.status(502).json({ error: "Stream error" });
+                else res.end();
+              });
+              nodeStream.pipe(res);
             } else {
               res.end();
             }
@@ -425,8 +450,11 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error("Server error:", err);
-  res.status(500).json({ error: "Internal Server Error" });
+  console.error("Server error:", err.message || err);
+  // Preserve body-parser/client error statuses (e.g. 400 for invalid JSON)
+  const status = err.status || err.statusCode || 500;
+  const message = status < 500 ? err.message : "Internal Server Error";
+  res.status(status).json({ error: message });
 });
 
 // ====================== Start Server ======================
