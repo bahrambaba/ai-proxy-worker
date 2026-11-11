@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 
 // ====================== Constants & Helpers ======================
 
-const FETCH_TIMEOUT_MS = 30_000;
+const FETCH_TIMEOUT_MS = parseInt(process.env.UPSTREAM_TIMEOUT_MS || "30000", 10);
 const MAX_RETRY_AFTER_MS = 5_000;
 
 const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
@@ -73,6 +73,21 @@ async function fetchWithTimeout(url, init = {}) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// Pipe an upstream Web ReadableStream to the Express response, with error handling.
+function pipeUpstreamStream(res, response) {
+  if (!response.body) {
+    res.end();
+    return;
+  }
+  const nodeStream = Readable.fromWeb(response.body);
+  nodeStream.on("error", (e) => {
+    console.error("Stream error:", e.message);
+    if (!res.headersSent) res.status(502).json({ error: "Stream error" });
+    else res.end();
+  });
+  nodeStream.pipe(res);
 }
 
 function isRateLimitOrOverload(status, errorText = "") {
@@ -348,9 +363,10 @@ const chatHandler = async (req, res) => {
     const headersFn = provider === "openrouter" ? openrouterHeaders : nvidiaHeaders;
     const endpoint = "/chat/completions";
 
-    // Randomize start index to distribute load
     const startIndex = Math.floor(Math.random() * keys.length);
     let lastErrorText = "";
+    let sawTimeout = false;
+    let lastStatus = 0;
 
     for (let i = 0; i < keys.length; i++) {
       const keyIndex = (startIndex + i) % keys.length;
@@ -365,34 +381,21 @@ const chatHandler = async (req, res) => {
 
         if (response.ok) {
           if (isStreaming) {
-            // Set SSE headers
             res.setHeader("Content-Type", "text/event-stream");
             res.setHeader("Cache-Control", "no-cache");
             res.setHeader("Connection", "keep-alive");
             Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
-
-            // response.body is a Web ReadableStream in Node 18+,
-            // convert it to a Node stream before piping.
-            if (response.body) {
-              const nodeStream = Readable.fromWeb(response.body);
-              nodeStream.on("error", (e) => {
-                console.error("Stream error:", e.message);
-                if (!res.headersSent) res.status(502).json({ error: "Stream error" });
-                else res.end();
-              });
-              nodeStream.pipe(res);
-            } else {
-              res.end();
-            }
-            return;
+            pipeUpstreamStream(res, response);
           } else {
             const data = await response.json();
-            return res.json(data);
+            res.json(data);
           }
+          return;
         }
 
         const errorText = await response.text();
         lastErrorText = errorText;
+        lastStatus = response.status;
 
         if (isRateLimitOrOverload(response.status, errorText)) {
           console.log(`${provider.toUpperCase()} Key ${keyIndex + 1} limited/overloaded (${response.status}), trying next...`);
@@ -404,6 +407,7 @@ const chatHandler = async (req, res) => {
           continue;
         }
 
+        // Non-retryable error (400/401/403/404...): return it directly
         let isJson = true;
         try {
           JSON.parse(errorText);
@@ -414,6 +418,7 @@ const chatHandler = async (req, res) => {
       } catch (err) {
         console.log(`${provider.toUpperCase()} Key ${keyIndex + 1} network error:`, err.name || err.message);
         lastErrorText = err.message || String(err);
+        if (err.name === "AbortError" || err.name === "TimeoutError") sawTimeout = true;
         if (i < keys.length - 1) {
           await sleep(200);
         }
@@ -421,10 +426,56 @@ const chatHandler = async (req, res) => {
       }
     }
 
-    return res.status(429).json({
+    // ---- Fallback: if NVIDIA failed, try the OpenRouter ":free" twin ----
+    if (provider === "nvidia" && openrouter.length > 0 && !body.model.endsWith(":free")) {
+      const fbModel = `${body.model}:free`;
+      const fbBody = { ...body, model: fbModel };
+      const fbStart = Math.floor(Math.random() * openrouter.length);
+
+      for (let i = 0; i < openrouter.length; i++) {
+        const key = openrouter[(fbStart + i) % openrouter.length];
+        try {
+          const response = await fetchWithTimeout(`${OPENROUTER_API_BASE}/chat/completions`, {
+            method: "POST",
+            headers: openrouterHeaders(key),
+            body: JSON.stringify(fbBody),
+          });
+
+          if (response.ok) {
+            console.log(`Fell back to OpenRouter free model: ${fbModel}`);
+            res.setHeader("X-Fallback-Provider", "openrouter");
+            res.setHeader("X-Fallback-Model", fbModel);
+            if (isStreaming) {
+              res.setHeader("Content-Type", "text/event-stream");
+              res.setHeader("Cache-Control", "no-cache");
+              res.setHeader("Connection", "keep-alive");
+              Object.entries(corsHeaders()).forEach(([k, v]) => res.setHeader(k, v));
+              pipeUpstreamStream(res, response);
+            } else {
+              const data = await response.json();
+              res.json(data);
+            }
+            return;
+          }
+          lastErrorText = await response.text();
+          lastStatus = response.status;
+        } catch (err) {
+          lastErrorText = err.message || String(err);
+          if (err.name === "AbortError" || err.name === "TimeoutError") sawTimeout = true;
+          continue;
+        }
+      }
+    }
+
+    const providerLabel = provider === "openrouter" ? "OR_*" : "NV_*";
+    const timedOut = sawTimeout && ![429, 402, 503, 529].includes(lastStatus);
+
+    return res.status(timedOut ? 504 : 429).json({
       error: {
-        message: `All ${provider.toUpperCase()} API keys (${provider === "openrouter" ? "OR_*" : "NV_*"}) are currently rate-limited or unavailable. Please try again in a few minutes.`,
-        type: "rate_limit_exceeded",
+        message: timedOut
+          ? `${provider.toUpperCase()} upstream timed out after ${Math.round(FETCH_TIMEOUT_MS / 1000)}s (key(s): ${providerLabel}). The model may be cold-starting or overloaded. Try a smaller model, or raise UPSTREAM_TIMEOUT_MS.`
+          : `All ${provider.toUpperCase()} API keys (${providerLabel}) are currently rate-limited or unavailable. Please try again in a few minutes.`,
+        type: timedOut ? "upstream_timeout" : "rate_limit_exceeded",
         details: extractErrorMessage(lastErrorText).slice(0, 300),
       },
     });
