@@ -418,7 +418,15 @@ const chatHandler = async (req, res) => {
       } catch (err) {
         console.log(`${provider.toUpperCase()} Key ${keyIndex + 1} network error:`, err.name || err.message);
         lastErrorText = err.message || String(err);
-        if (err.name === "AbortError" || err.name === "TimeoutError") sawTimeout = true;
+        if (err.name === "AbortError" || err.name === "TimeoutError") {
+          sawTimeout = true;
+          // A timeout is usually a model-side issue, not key-specific.
+          // If an OpenRouter fallback is possible, stop retrying keys and
+          // go to the fallback path quickly instead of waiting N x timeout.
+          if (provider === "nvidia" && openrouter.length > 0 && !body.model.endsWith(":free")) {
+            break;
+          }
+        }
         if (i < keys.length - 1) {
           await sleep(200);
         }
